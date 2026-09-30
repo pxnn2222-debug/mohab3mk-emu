@@ -1,0 +1,257 @@
+#include "common/emulatorConfig.h"
+
+#include "common/assert.h"
+
+#include <algorithm>
+#include <atomic>
+#include <memory>
+
+namespace Config {
+
+static std::unique_ptr<ConfigOptions> g_config;
+
+void Initialize() {
+	EXIT_IF(g_config != nullptr);
+
+	g_config = std::make_unique<ConfigOptions>();
+}
+
+void Shutdown() {
+	g_config.reset();
+}
+
+void Load(const ConfigOptions& cfg) {
+	EXIT_IF(g_config == nullptr);
+	EXIT_IF(cfg.user_name.empty() || cfg.user_name.size() > MAX_USER_NAME_LENGTH);
+	EXIT_IF(!IsConfiguredUserIdValid(cfg.user_id));
+
+	*g_config = cfg;
+}
+
+uint32_t GetScreenWidth() {
+	return g_config->screen_width;
+}
+
+uint32_t GetScreenHeight() {
+	return g_config->screen_height;
+}
+
+const std::string& GetUserName() {
+	return g_config->user_name;
+}
+
+int32_t GetUserId() {
+	return g_config->user_id;
+}
+
+const std::string& GetAudioInputDevice() {
+	return g_config->audio_input_device;
+}
+
+PresentMode GetPresentMode() {
+	return g_config->present_mode;
+}
+
+BdaSyncMode GetBdaSyncMode() {
+	return g_config->bda_sync_mode;
+}
+
+int32_t GetGpuIndex() {
+	return g_config->gpu_index;
+}
+
+bool FullscreenEnabled() {
+	return g_config->fullscreen_enabled;
+}
+
+bool VrEnabled() {
+	return g_config->vr_enabled;
+}
+
+bool AmdCpuEnabled() {
+	return g_config->amd_cpu_enabled;
+}
+
+uint32_t GetVblankFrequency() {
+	return std::clamp(g_config->vblank_frequency, 30u, 360u);
+}
+
+uint32_t GetConsoleLanguage() {
+	return g_config->console_language;
+}
+
+bool VulkanValidationEnabled() {
+	return g_config->vulkan_validation_enabled;
+}
+
+bool ShaderValidationEnabled() {
+	return g_config->shader_validation_enabled;
+}
+
+bool ShaderPrecompileEnabled() {
+	return g_config->shader_precompile_enabled;
+}
+
+ShaderOptimizationType GetShaderOptimizationType() {
+	return g_config->shader_optimization_type;
+}
+
+LogDirection GetShaderLogDirection() {
+	return g_config->shader_log_direction;
+}
+
+std::filesystem::path GetShaderLogFolder() {
+	return g_config->shader_log_folder;
+}
+
+bool CommandBufferDumpEnabled() {
+	return g_config->command_buffer_dump_enabled;
+}
+
+std::filesystem::path GetCommandBufferDumpFolder() {
+	return g_config->command_buffer_dump_folder;
+}
+
+bool GraphicsDebugDumpEnabled() {
+	return g_config->graphics_debug_dump_enabled;
+}
+
+LogDirection GetPrintfDirection() {
+	return g_config->printf_direction;
+}
+
+std::filesystem::path GetPrintfOutputFile() {
+	return g_config->printf_output_file;
+}
+
+bool ProfilerEnabled() {
+	return g_config->profiler_enabled;
+}
+
+bool SpirvDebugPrintfEnabled() {
+	return g_config->spirv_debug_printf_enabled;
+}
+
+bool GpuAssistedValidationEnabled() {
+	return g_config->gpu_assisted_validation_enabled && g_config->vulkan_validation_enabled;
+}
+
+bool RenderDocEnabled() {
+	return g_config->renderdoc_enabled;
+}
+
+bool ReadbackLinearImagesEnabled() {
+	return g_config->readback_linear_images;
+}
+
+bool TessellationEnabled() {
+	return g_config->tessellation_enabled;
+}
+
+bool PlayGoHackEnabled() {
+	return g_config->playgo_hack_enabled;
+}
+
+uint32_t GetDrainStatsInterval() {
+	return g_config->drain_stats_interval;
+}
+
+bool DccGpuClearEnabled() {
+	return g_config->dcc_gpu_clear_enabled;
+}
+
+bool AsyncSubmitEnabled() {
+	return g_config->async_submit_enabled;
+}
+
+bool GpuMeshIndirectEnabled() {
+	return g_config->gpu_mesh_indirect_enabled;
+}
+
+uint32_t GetGpuFramesAhead() {
+	return g_config->gpu_frames_ahead;
+}
+
+
+uint32_t GetLabelFlushIntervalUs() {
+	return g_config->label_flush_interval_us;
+}
+
+// A runtime change from the settings panel; 0 means the configured value.
+static std::atomic<uint32_t> g_gpu_timestamp_scale_override {0};
+
+uint32_t GetGpuTimestampScalePercent() {
+	const auto percent = g_gpu_timestamp_scale_override.load(std::memory_order_relaxed);
+	return percent != 0 ? percent : g_config->gpu_timestamp_scale_percent;
+}
+
+void SetGpuTimestampScalePercent(uint32_t percent) {
+	g_gpu_timestamp_scale_override.store(std::clamp(percent, 100u, 200u),
+	                                     std::memory_order_relaxed);
+}
+
+// A runtime change from the settings panel: -1 means the configured value.
+static std::atomic<int> g_pipeline_libraries_override {-1};
+
+bool PipelineLibrariesEnabled() {
+	const auto enabled = g_pipeline_libraries_override.load(std::memory_order_relaxed);
+	return enabled >= 0 ? enabled != 0 : g_config->pipeline_libraries_enabled;
+}
+
+void SetPipelineLibrariesEnabled(bool enabled) {
+	g_pipeline_libraries_override.store(enabled ? 1 : 0, std::memory_order_relaxed);
+}
+
+static std::atomic<int> g_async_pipelines_override {-1};
+
+bool AsyncPipelinesEnabled() {
+	const auto enabled = g_async_pipelines_override.load(std::memory_order_relaxed);
+	return enabled >= 0 ? enabled != 0 : g_config->async_pipelines_enabled;
+}
+
+void SetAsyncPipelinesEnabled(bool enabled) {
+	g_async_pipelines_override.store(enabled ? 1 : 0, std::memory_order_relaxed);
+}
+
+static std::atomic<int> g_speculative_draws_override {-1};
+
+bool SpeculativeDrawsEnabled() {
+	const auto enabled = g_speculative_draws_override.load(std::memory_order_relaxed);
+	return enabled >= 0 ? enabled != 0 : g_config->speculative_draws_enabled;
+}
+
+void SetSpeculativeDrawsEnabled(bool enabled) {
+	g_speculative_draws_override.store(enabled ? 1 : 0, std::memory_order_relaxed);
+}
+
+bool RecordThreadEnabled() {
+	return g_config->record_thread_enabled;
+}
+
+bool HardwareBufferBoundsEnabled() {
+	return g_config->hardware_buffer_bounds;
+}
+
+static std::atomic<int> g_relaxed_readback_override {-1};
+
+bool RelaxedReadbackEnabled() {
+	const auto enabled = g_relaxed_readback_override.load(std::memory_order_relaxed);
+	return enabled >= 0 ? enabled != 0 : g_config->relaxed_readback_enabled;
+}
+
+void SetRelaxedReadbackEnabled(bool enabled) {
+	g_relaxed_readback_override.store(enabled ? 1 : 0, std::memory_order_relaxed);
+}
+
+
+#if KYTY_PLATFORM == KYTY_PLATFORM_WINDOWS
+bool RedZoneProtectionEnabled() {
+	return g_config->red_zone_protection_enabled;
+}
+#endif
+
+const Keymap& GetKeymap() {
+	return g_config->keymap;
+}
+
+} // namespace Config
